@@ -1,0 +1,4 @@
+{
+  "allow_patterns": ["git status*", "python -m unittest*"],
+  "deny_patterns": ["rm -rf *", "curl *| sh*", "git reset --hard*"]
+}

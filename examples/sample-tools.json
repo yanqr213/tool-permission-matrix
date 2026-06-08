@@ -1,0 +1,23 @@
+{
+  "tools": [
+    {
+      "name": "workspace_fs",
+      "source": "mcp",
+      "capabilities": ["file_read", "file_write"],
+      "read_paths": ["src/**", "tests/**", "README.md"],
+      "write_paths": ["src/**", "outputs/**"]
+    },
+    {
+      "name": "browser",
+      "source": "agent",
+      "capabilities": ["browse", "network"],
+      "urls": ["https://docs.python.org"]
+    },
+    {
+      "name": "shell",
+      "source": "agent",
+      "capabilities": ["process_execute"],
+      "commands": ["git status", "python -m unittest discover -s tests -v"]
+    }
+  ]
+}

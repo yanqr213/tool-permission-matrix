@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "path_rules": {
+    "read_allow": ["src/**", "tests/**", "README.md"],
+    "write_allow": ["src/**", "tests/**", "outputs/**"],
+    "deny": [".git/**", ".env", "**/secrets/**"]
+  },
+  "network": {
+    "allow": false,
+    "hosts": []
+  },
+  "shell": {
+    "allow_patterns": ["git status*", "python -m unittest*"],
+    "deny_patterns": ["rm -rf *", "curl *| sh*", "git reset --hard*"]
+  },
+  "exemptions": [
+    {
+      "rule_id": "unexpected_network_access",
+      "tool": "browser.open",
+      "reason": "Documentation browsing is allowed for the sample report",
+      "expires_on": "2027-12-31"
+    }
+  ],
+  "check_threshold": "error"
+}
