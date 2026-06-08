@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-06-08
+
+- Added SARIF 2.1.0 report output for GitHub Code Scanning and security platform ingestion.
+- Added CLI support for `--format sarif`.
+- SARIF output omits policy-exempted findings so approved exceptions do not become code scanning alerts.
+- Added SARIF renderer and CLI tests.
+- Expanded Chinese and English README docs with Code Scanning examples.
+
 ## 0.1.0 - 2026-06-08
 
 - First public release of `tool-permission-matrix`.

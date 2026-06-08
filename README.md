@@ -7,7 +7,8 @@
 - 离线运行，不调用外部服务。
 - 标准库优先，零运行时依赖。
 - 既能从日志复盘，也能从工具清单做前置审计。
-- 同时产出 Markdown、JSON、CSV，并支持 CI gate。
+- 同时产出 Markdown、JSON、CSV、SARIF，并支持 CI gate。
+- SARIF 可上传到 GitHub Code Scanning，把 agent 工具权限风险放到安全/代码扫描视图里。
 
 ## 功能
 
@@ -20,7 +21,7 @@
 - 权限重叠矩阵：展示工具之间共享的能力和路径重叠。
 - 最小权限建议：给出收敛网络、shell、写权限的建议。
 - 策略豁免：允许按规则、工具、命令模式、路径模式添加时效性豁免。
-- 报告导出：`markdown`、`json`、`csv`。
+- 报告导出：`markdown`、`json`、`csv`、`sarif`。
 - CI gate：`--check warning|error` 或单独 `check` 子命令。
 
 ## 安装
@@ -65,6 +66,17 @@ tool-permission-matrix from-log examples/sample-log.jsonl \
   --format json \
   --output outputs/report.json \
   --check error
+```
+
+生成 SARIF 报告，供 GitHub Code Scanning 或安全平台读取：
+
+```bash
+tool-permission-matrix from-log examples/sample-log.jsonl \
+  --policy examples/sample-policy.json \
+  --shell-config examples/shell-config.json \
+  --repo-root . \
+  --format sarif \
+  --output outputs/tool-permissions.sarif
 ```
 
 扫描目录里的输入文件：
@@ -245,6 +257,10 @@ tool=workspace_fs path=src/app.py
 
 扁平化输出 `summary`、`tool`、`finding`、`overlap`、`recommendation` 行，适合导入表格或 SIEM/审计流水。
 
+### SARIF
+
+适合 GitHub Code Scanning、DefectDojo、SonarQube 或其他支持 SARIF 2.1.0 的安全/质量平台。未豁免的 finding 会变成 SARIF result；已豁免的 finding 会保留在 JSON/Markdown/CSV 报告中，但不会上传为 code scanning alert。
+
 ## 团队工作流建议
 
 1. 先用 `init-policy` 生成团队基线策略。
@@ -272,6 +288,33 @@ GitHub Actions:
   run: tool-permission-matrix check --report outputs/report.json --threshold error
 ```
 
+上传 SARIF 到 GitHub Code Scanning：
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+  - run: python -m pip install git+https://github.com/yanqr213/tool-permission-matrix.git
+  - name: Build permission SARIF
+    run: |
+      tool-permission-matrix from-log agent.jsonl \
+        --policy policy.json \
+        --shell-config shell-config.json \
+        --repo-root . \
+        --format sarif \
+        --output outputs/tool-permissions.sarif
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: outputs/tool-permissions.sarif
+```
+
 ## 隐私
 
 - 工具本身不访问网络。
@@ -288,7 +331,7 @@ GitHub Actions:
 
 ## English
 
-`tool-permission-matrix` is an offline CLI for auditing AI coding agent permissions before rollout. It parses local tool manifests, agent logs, path policies, and shell allow/deny rules, then generates Markdown, JSON, or CSV reports with risk explanations, overlap analysis, least-privilege recommendations, and CI-friendly exit codes.
+`tool-permission-matrix` is an offline CLI for auditing AI coding agent permissions before rollout. It parses local tool manifests, agent logs, path policies, and shell allow/deny rules, then generates Markdown, JSON, CSV, or SARIF reports with risk explanations, overlap analysis, least-privilege recommendations, and CI-friendly exit codes.
 
 Core commands:
 
@@ -306,6 +349,18 @@ Highlights:
 - Policy exemptions with expiration dates
 - `--output` creates parent directories automatically
 - `--check warning|error` for CI gates
+- SARIF 2.1.0 output for GitHub Code Scanning and security platforms
+
+SARIF example:
+
+```bash
+tool-permission-matrix from-log examples/sample-log.jsonl \
+  --policy examples/sample-policy.json \
+  --shell-config examples/shell-config.json \
+  --repo-root . \
+  --format sarif \
+  --output outputs/tool-permissions.sarif
+```
 
 ## License
 

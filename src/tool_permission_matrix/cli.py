@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def add_report_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--format", choices=("markdown", "json", "csv"), default="markdown")
+    parser.add_argument("--format", choices=("markdown", "json", "csv", "sarif"), default="markdown")
     parser.add_argument("--output", default=None, help="Write report to a file; parent directories are created automatically.")
     parser.add_argument("--check", choices=("warning", "error"), default=None, help="Exit non-zero if findings at or above the threshold remain after exemptions.")
 
@@ -219,3 +219,7 @@ def _merge_tools(primary: Sequence, secondary: Sequence) -> List:
         else:
             index[tool.name] = tool
     return sorted(index.values(), key=lambda item: item.name)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

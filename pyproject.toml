@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tool-permission-matrix"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline CLI for auditing AI coding agent tool permissions, path scopes, and shell risk."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -28,6 +28,12 @@ classifiers = [
 
 [project.scripts]
 tool-permission-matrix = "tool_permission_matrix.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yanqr213/tool-permission-matrix"
+Repository = "https://github.com/yanqr213/tool-permission-matrix"
+Issues = "https://github.com/yanqr213/tool-permission-matrix/issues"
+Changelog = "https://github.com/yanqr213/tool-permission-matrix/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

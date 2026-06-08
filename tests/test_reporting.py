@@ -40,6 +40,32 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("section,name,value", text)
         self.assertIn("recommendation", text)
 
+    def test_render_sarif(self):
+        text = render_report(self.build_report(), "sarif")
+        payload = json.loads(text)
+
+        self.assertEqual(payload["version"], "2.1.0")
+        self.assertEqual(payload["runs"][0]["tool"]["driver"]["name"], "tool-permission-matrix")
+        self.assertEqual(payload["runs"][0]["results"][0]["ruleId"], "broad_read_scope")
+        self.assertEqual(payload["runs"][0]["results"][0]["level"], "warning")
+
+    def test_render_sarif_uses_relative_source_uri(self):
+        report = self.build_report()
+        report.sources = [str(Path.cwd() / "examples" / "sample-log.jsonl")]
+        payload = json.loads(render_report(report, "sarif"))
+
+        location = payload["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+        self.assertEqual(location, "examples/sample-log.jsonl")
+
+    def test_render_sarif_omits_exempted_findings(self):
+        report = self.build_report()
+        report.findings[0].exempted = True
+        text = render_report(report, "sarif")
+        payload = json.loads(text)
+
+        self.assertEqual(payload["runs"][0]["results"], [])
+        self.assertEqual(payload["runs"][0]["tool"]["driver"]["rules"], [])
+
     def test_write_output_creates_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "nested", "report.md")

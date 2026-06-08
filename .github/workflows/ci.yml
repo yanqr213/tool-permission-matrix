@@ -22,3 +22,7 @@ jobs:
       - name: CLI smoke
         run: |
           tool-permission-matrix from-log examples/sample-log.jsonl --policy examples/sample-policy.json --shell-config examples/shell-config.json --format markdown
+      - name: SARIF smoke
+        run: |
+          python -m tool_permission_matrix from-log examples/sample-log.jsonl --policy examples/sample-policy.json --shell-config examples/shell-config.json --format sarif --output reports/tool-permissions.sarif
+          python -m json.tool reports/tool-permissions.sarif > /dev/null

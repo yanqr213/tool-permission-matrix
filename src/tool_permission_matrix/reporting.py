@@ -14,6 +14,8 @@ def render_report(report: Report, output_format: str) -> str:
         return json.dumps(report.to_dict(), ensure_ascii=False, indent=2)
     if output_format == "csv":
         return render_csv(report)
+    if output_format == "sarif":
+        return render_sarif(report)
     if output_format == "markdown":
         return render_markdown(report)
     raise ValueError(f"Unsupported format: {output_format}")
@@ -170,3 +172,139 @@ def render_csv(report: Report) -> str:
             }
         )
     return buffer.getvalue()
+
+
+def render_sarif(report: Report) -> str:
+    rules = {}
+    for finding in report.findings:
+        if finding.exempted:
+            continue
+        if finding.rule_id in rules:
+            continue
+        rules[finding.rule_id] = {
+            "id": finding.rule_id,
+            "name": finding.title,
+            "shortDescription": {"text": finding.title},
+            "fullDescription": {"text": finding.description},
+            "help": {"text": _sarif_help_text(finding)},
+            "properties": {
+                "problem.severity": _sarif_problem_severity(finding.severity),
+                "security-severity": _security_severity(finding.severity),
+                "tags": ["ai-agent-permissions", finding.severity],
+            },
+        }
+
+    results = []
+    for finding in report.findings:
+        if finding.exempted:
+            continue
+        results.append(
+            {
+                "ruleId": finding.rule_id,
+                "level": _sarif_level(finding.severity),
+                "message": {"text": _sarif_message(finding)},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": _sarif_location(report, finding)},
+                            "region": {"startLine": 1},
+                        }
+                    }
+                ],
+                "properties": {
+                    "tool": finding.tool,
+                    "capability": finding.capability,
+                    "command": finding.command,
+                    "path": finding.path,
+                },
+            }
+        )
+
+    payload = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "tool-permission-matrix",
+                        "informationUri": "https://github.com/yanqr213/tool-permission-matrix",
+                        "rules": [rules[key] for key in sorted(rules)],
+                    }
+                },
+                "results": results,
+                "properties": {
+                    "summary": report.summary,
+                    "sources": list(report.sources),
+                    "exempted_findings": report.summary.get("exempted_count", 0),
+                },
+            }
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _sarif_message(finding) -> str:
+    detail = finding.command or finding.path or finding.capability or finding.description
+    if finding.tool:
+        return f"{finding.title} in tool '{finding.tool}': {detail}. {finding.description}"
+    return f"{finding.title}: {detail}. {finding.description}"
+
+
+def _sarif_help_text(finding) -> str:
+    parts = [finding.description]
+    if finding.command:
+        parts.append(f"Command: {finding.command}")
+    if finding.path:
+        parts.append(f"Path: {finding.path}")
+    if finding.capability:
+        parts.append(f"Capability: {finding.capability}")
+    return "\n".join(parts)
+
+
+def _sarif_location(report: Report, finding) -> str:
+    if finding.path and _looks_like_relative_file(finding.path):
+        return _normalize_uri(finding.path)
+    if report.sources:
+        return _normalize_uri(str(report.sources[0]))
+    return "tool-permission-matrix-report"
+
+
+def _looks_like_relative_file(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return not (
+        normalized.startswith("/")
+        or ":" in normalized
+        or any(token in normalized for token in ("*", "?", "[", "]"))
+        or normalized in {".", "..", "~"}
+    )
+
+
+def _normalize_uri(path: str) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            path = str(candidate.resolve().relative_to(Path.cwd().resolve()))
+        except ValueError:
+            path = candidate.name or "tool-permission-matrix-report"
+    return path.replace("\\", "/").lstrip("./")
+
+
+def _sarif_level(severity: str) -> str:
+    if severity == "error":
+        return "error"
+    if severity == "warning":
+        return "warning"
+    return "note"
+
+
+def _sarif_problem_severity(severity: str) -> str:
+    if severity == "error":
+        return "error"
+    if severity == "warning":
+        return "warning"
+    return "note"
+
+
+def _security_severity(severity: str) -> str:
+    return {"error": "8.0", "warning": "5.0", "info": "2.0"}.get(severity, "0.0")
