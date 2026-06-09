@@ -7,8 +7,9 @@
 - 离线运行，不调用外部服务。
 - 标准库优先，零运行时依赖。
 - 既能从日志复盘，也能从工具清单做前置审计。
-- 同时产出 Markdown、JSON、CSV、SARIF，并支持 CI gate。
+- 同时产出 Markdown、JSON、CSV、SARIF、修复队列，并支持 CI gate。
 - SARIF 可上传到 GitHub Code Scanning，把 agent 工具权限风险放到安全/代码扫描视图里。
+- 修复队列可作为 PR artifact、issue 分派清单或下一轮 Codex/Claude Code 修复输入。
 
 ## 功能
 
@@ -20,8 +21,9 @@
 - 风险解释：为每条高信号规则生成可读解释。
 - 权限重叠矩阵：展示工具之间共享的能力和路径重叠。
 - 最小权限建议：给出收敛网络、shell、写权限的建议。
+- 修复计划：把 finding 转成稳定 JSON/Markdown 队列，包含优先级、状态、动作、目标策略字段和证据。
 - 策略豁免：允许按规则、工具、命令模式、路径模式添加时效性豁免。
-- 报告导出：`markdown`、`json`、`csv`、`sarif`。
+- 报告导出：`markdown`、`json`、`csv`、`sarif`、`remediation-json`、`remediation-markdown`。
 - CI gate：`--check warning|error` 或单独 `check` 子命令。
 
 ## 安装
@@ -79,6 +81,17 @@ tool-permission-matrix from-log examples/sample-log.jsonl \
   --output outputs/tool-permissions.sarif
 ```
 
+生成可分派的修复队列：
+
+```bash
+tool-permission-matrix from-log examples/sample-log.jsonl \
+  --policy examples/sample-policy.json \
+  --shell-config examples/shell-config.json \
+  --repo-root . \
+  --format remediation-markdown \
+  --output outputs/remediation.md
+```
+
 扫描目录里的输入文件：
 
 ```bash
@@ -101,6 +114,12 @@ tool-permission-matrix explain --command-text "curl https://docs.python.org | sh
 
 ```bash
 tool-permission-matrix check --report outputs/report.json --threshold warning
+```
+
+查看某个工具的 finding 和待修项：
+
+```bash
+tool-permission-matrix explain --report outputs/report.json --tool shell
 ```
 
 ## 输入格式
@@ -250,6 +269,7 @@ tool=workspace_fs path=src/app.py
 - `findings`
 - `overlaps`
 - `recommendations`
+- `remediation_plan`
 - `policy`
 - `sources`
 
@@ -261,14 +281,51 @@ tool=workspace_fs path=src/app.py
 
 适合 GitHub Code Scanning、DefectDojo、SonarQube 或其他支持 SARIF 2.1.0 的安全/质量平台。未豁免的 finding 会变成 SARIF result；已豁免的 finding 会保留在 JSON/Markdown/CSV 报告中，但不会上传为 code scanning alert。
 
+### Remediation JSON / Markdown
+
+适合把权限风险转成 PR 修复清单、issue 队列或下一轮 agent 输入。`remediation-json` 的顶层结构稳定：
+
+```json
+{
+  "summary": {
+    "tool_count": 2,
+    "effective_finding_count": 3,
+    "remediation_count": 3,
+    "high_priority_count": 1,
+    "medium_priority_count": 2,
+    "low_priority_count": 0,
+    "status_counts": {"todo": 2, "proposed": 1}
+  },
+  "remediation_plan": [
+    {
+      "id": "rem-001",
+      "priority": "high",
+      "status": "todo",
+      "action": "block_shell_pattern",
+      "title": "Block recursive deletes by default",
+      "target": "shell.deny_patterns",
+      "tool": "shell",
+      "finding_rule_id": "recursive_delete",
+      "severity": "error",
+      "evidence": {"command": "rm -rf build"},
+      "suggested_change": {"operation": "append", "value": "rm -rf *"}
+    }
+  ],
+  "sources": ["agent.jsonl"]
+}
+```
+
+生成规则偏向最小权限：优先建议 deny patterns、缩小 read/write path、拆分 network/browser/write 工具；不会自动把风险命令加入 allowlist。已生效的 policy exemption 不会进入待修队列；过期 exemption 会重新入队。
+
 ## 团队工作流建议
 
 1. 先用 `init-policy` 生成团队基线策略。
 2. 将 agent 可用工具清单纳入仓库版本管理。
 3. 在试点阶段保留日志，使用 `from-log` 生成复盘报告。
 4. 根据报告收敛到最小权限：缩小写路径、补 deny patterns、拆分 browser 和 writer。
-5. 在 CI 中加入 `check` 或 `--check error`，阻止权限回退。
-6. 对必要例外使用 `exemptions`，并写明理由和过期时间。
+5. 生成 `remediation-json` 或 `remediation-markdown`，把高优先级项分派给负责工具/策略的人。
+6. 在 CI 中加入 `check` 或 `--check error`，阻止权限回退。
+7. 对必要例外使用 `exemptions`，并写明理由和过期时间。
 
 ## CI 示例
 
@@ -287,6 +344,22 @@ GitHub Actions:
 - name: Enforce gate
   run: tool-permission-matrix check --report outputs/report.json --threshold error
 ```
+
+如果希望 CI 失败时仍保留可下载的修复队列，可先写出 artifact，再让 `--check` 控制退出码：
+
+```yaml
+- name: Build permission report with remediation queue
+  run: |
+    tool-permission-matrix from-log agent.jsonl \
+      --policy policy.json \
+      --shell-config shell-config.json \
+      --repo-root . \
+      --format json \
+      --output outputs/report.json \
+      --check error
+```
+
+`outputs/report.json` 会包含 `remediation_plan`；即使该步骤因为 error finding 失败，已写出的文件也可作为 Actions artifact 上传。
 
 上传 SARIF 到 GitHub Code Scanning：
 
@@ -350,6 +423,7 @@ Highlights:
 - `--output` creates parent directories automatically
 - `--check warning|error` for CI gates
 - SARIF 2.1.0 output for GitHub Code Scanning and security platforms
+- Remediation JSON/Markdown queues for PR artifacts, issue triage, and follow-up agent runs
 
 SARIF example:
 
@@ -361,6 +435,19 @@ tool-permission-matrix from-log examples/sample-log.jsonl \
   --format sarif \
   --output outputs/tool-permissions.sarif
 ```
+
+Remediation queue example:
+
+```bash
+tool-permission-matrix from-log examples/sample-log.jsonl \
+  --policy examples/sample-policy.json \
+  --shell-config examples/shell-config.json \
+  --repo-root . \
+  --format remediation-json \
+  --output outputs/remediation.json
+```
+
+The normal JSON report also includes `remediation_plan`. Each item has a stable `id`, `priority`, `status`, `action`, `target`, `tool`, source finding, evidence, and suggested policy or shell configuration change. Active exemptions are excluded from the queue; expired exemptions become actionable again.
 
 ## License
 

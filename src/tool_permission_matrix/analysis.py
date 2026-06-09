@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Sequence, Set
 from tool_permission_matrix.models import Finding, OverlapEntry, Policy, Recommendation, Report, ToolRecord
 from tool_permission_matrix.patterns import classify_command
 from tool_permission_matrix.policy import apply_exemptions, filter_effective_findings, path_matches_any, summarize_exemptions
+from tool_permission_matrix.remediation import build_remediation_plan
 
 
 def build_report(
@@ -32,15 +33,18 @@ def build_report(
         "capabilities": summarize_capabilities(tools),
     }
 
-    return Report(
+    report = Report(
         summary=summary,
         tools=tools,
         findings=findings,
         overlaps=overlaps,
         recommendations=recommendations,
+        remediation_plan=[],
         policy=active_policy,
         sources=list(sources or []),
     )
+    report.remediation_plan = build_remediation_plan(report)
+    return report
 
 
 def analyze_tools(

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-06-09
+
+- Added a stable remediation plan model for converting effective findings into actionable least-privilege tasks.
+- Added `remediation-json` and `remediation-markdown` report formats.
+- Added `remediation_plan` to the normal JSON report for CI artifacts and follow-up agent runs.
+- Extended Markdown and CSV reports with remediation queue rows.
+- Updated `explain --report --tool` to include tool-specific remediation items.
+- Added CI smoke coverage and tests for remediation rendering, CLI output, check-failure artifacts, and exemption behavior.
+- Expanded Chinese and English README docs with remediation workflow examples.
+
 ## 0.2.0 - 2026-06-08
 
 - Added SARIF 2.1.0 report output for GitHub Code Scanning and security platform ingestion.

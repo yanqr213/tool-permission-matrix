@@ -46,6 +46,7 @@ class AnalysisTests(unittest.TestCase):
         ]
         report = build_report(tools, Path("/repo"), Policy(), {"allow_patterns": [], "deny_patterns": []})
         self.assertGreaterEqual(report.summary["effective_finding_count"], 2)
+        self.assertGreaterEqual(len(report.remediation_plan), 2)
 
     def test_build_recommendations_returns_overlap_hint(self):
         tools = [
@@ -64,3 +65,21 @@ class AnalysisTests(unittest.TestCase):
         )
         self.assertEqual(merged["allow_patterns"], ["git status*", "python -m unittest*"])
         self.assertEqual(merged["deny_patterns"], ["rm -rf *", "git reset --hard*"])
+
+    def test_build_report_remediation_ignores_active_exemptions(self):
+        tools = [ToolRecord(name="shell", source="x", capabilities={"process_execute"}, commands=["rm -rf build"])]
+        policy = Policy(exemptions=[{"rule_id": "recursive_delete", "tool": "shell", "reason": "reviewed sandbox"}])
+
+        report = build_report(tools, Path("/repo"), policy, {"allow_patterns": [], "deny_patterns": []})
+
+        rule_ids = {item.finding_rule_id for item in report.remediation_plan}
+        self.assertNotIn("recursive_delete", rule_ids)
+
+    def test_build_report_remediation_keeps_expired_exemptions(self):
+        tools = [ToolRecord(name="shell", source="x", capabilities={"process_execute"}, commands=["rm -rf build"])]
+        policy = Policy(exemptions=[{"rule_id": "recursive_delete", "tool": "shell", "expires_on": "2026-01-01"}])
+
+        report = build_report(tools, Path("/repo"), policy, {"allow_patterns": [], "deny_patterns": []})
+
+        rule_ids = {item.finding_rule_id for item in report.remediation_plan}
+        self.assertIn("recursive_delete", rule_ids)

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from tool_permission_matrix.models import Report
+from tool_permission_matrix.remediation import render_remediation_json, render_remediation_markdown
 
 
 def render_report(report: Report, output_format: str) -> str:
@@ -16,6 +17,10 @@ def render_report(report: Report, output_format: str) -> str:
         return render_csv(report)
     if output_format == "sarif":
         return render_sarif(report)
+    if output_format == "remediation-json":
+        return render_remediation_json(report)
+    if output_format == "remediation-markdown":
+        return render_remediation_markdown(report)
     if output_format == "markdown":
         return render_markdown(report)
     raise ValueError(f"Unsupported format: {output_format}")
@@ -101,6 +106,29 @@ def render_markdown(report: Report) -> str:
             lines.append(f"- {prefix} {item.title}: {item.details} (tool: {item.tool})")
         else:
             lines.append(f"- {prefix} {item.title}: {item.details}")
+    lines.extend(
+        [
+            "",
+            "## Remediation Plan",
+            "",
+            "| ID | Priority | Status | Action | Tool | Finding | Target |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    if not report.remediation_plan:
+        lines.append("| - | - | - | No remediation needed | - | - | - |")
+    for item in report.remediation_plan:
+        lines.append(
+            "| {id} | {priority} | {status} | {action} | {tool} | {finding} | {target} |".format(
+                id=item.id,
+                priority=item.priority,
+                status=item.status,
+                action=_markdown_cell(item.action),
+                tool=_markdown_cell(item.tool or "-"),
+                finding=_markdown_cell(item.finding_rule_id or "-"),
+                target=_markdown_cell(item.target),
+            )
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -168,6 +196,18 @@ def render_csv(report: Report) -> str:
                 "severity": "",
                 "tool": item.tool or "",
                 "details": item.details,
+                "exempted": "",
+            }
+        )
+    for item in report.remediation_plan:
+        writer.writerow(
+            {
+                "section": "remediation",
+                "name": item.id,
+                "value": item.action,
+                "severity": item.severity or "",
+                "tool": item.tool or "",
+                "details": f"priority={item.priority};status={item.status};finding={item.finding_rule_id or ''};target={item.target}",
                 "exempted": "",
             }
         )
@@ -288,6 +328,10 @@ def _normalize_uri(path: str) -> str:
         except ValueError:
             path = candidate.name or "tool-permission-matrix-report"
     return path.replace("\\", "/").lstrip("./")
+
+
+def _markdown_cell(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def _sarif_level(severity: str) -> str:

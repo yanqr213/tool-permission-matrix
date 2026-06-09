@@ -90,6 +90,38 @@ class Recommendation:
 
 
 @dataclass
+class RemediationItem:
+    priority: str
+    status: str
+    action: str
+    title: str
+    details: str
+    target: str
+    id: str = ""
+    tool: Optional[str] = None
+    finding_rule_id: Optional[str] = None
+    severity: Optional[str] = None
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    suggested_change: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "priority": self.priority,
+            "status": self.status,
+            "action": self.action,
+            "title": self.title,
+            "details": self.details,
+            "target": self.target,
+            "tool": self.tool,
+            "finding_rule_id": self.finding_rule_id,
+            "severity": self.severity,
+            "evidence": dict(self.evidence),
+            "suggested_change": dict(self.suggested_change),
+        }
+
+
+@dataclass
 class OverlapEntry:
     tool_a: str
     tool_b: str
@@ -139,6 +171,7 @@ class Report:
     recommendations: Sequence[Recommendation]
     policy: Optional[Policy] = None
     sources: Sequence[str] = field(default_factory=list)
+    remediation_plan: Sequence[RemediationItem] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -147,6 +180,7 @@ class Report:
             "findings": [finding.to_dict() for finding in self.findings],
             "overlaps": [entry.to_dict() for entry in self.overlaps],
             "recommendations": [item.to_dict() for item in self.recommendations],
+            "remediation_plan": [item.to_dict() for item in self.remediation_plan],
             "policy": self.policy.to_dict() if self.policy else None,
             "sources": list(self.sources),
         }

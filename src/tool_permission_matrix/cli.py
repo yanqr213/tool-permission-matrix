@@ -60,7 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def add_report_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--format", choices=("markdown", "json", "csv", "sarif"), default="markdown")
+    parser.add_argument(
+        "--format",
+        choices=("markdown", "json", "csv", "sarif", "remediation-json", "remediation-markdown"),
+        default="markdown",
+    )
     parser.add_argument("--output", default=None, help="Write report to a file; parent directories are created automatically.")
     parser.add_argument("--check", choices=("warning", "error"), default=None, help="Exit non-zero if findings at or above the threshold remain after exemptions.")
 
@@ -170,9 +174,11 @@ def run_explain(args: argparse.Namespace) -> int:
         return 0
     tools = payload.get("tools", [])
     findings = payload.get("findings", [])
+    remediation_plan = payload.get("remediation_plan", [])
     selected_tools = [item for item in tools if item.get("name") == args.tool]
     selected_findings = [item for item in findings if item.get("tool") == args.tool]
-    output = {"tool": selected_tools, "findings": selected_findings}
+    selected_remediation = [item for item in remediation_plan if item.get("tool") == args.tool]
+    output = {"tool": selected_tools, "findings": selected_findings, "remediation_plan": selected_remediation}
     print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0
 
